@@ -16,7 +16,9 @@ META_TOKEN     = os.environ["META_TOKEN"]
 GOOGLE_SA_JSON = os.environ["GOOGLE_SA_JSON"]
 
 # ── Auth Google ────────────────────────────────────────────────────────────────
-creds_info = json.loads(GOOGLE_SA_JSON)
+# Extrai só o JSON (ignora lixo após o fechamento do objeto)
+_sa_raw = GOOGLE_SA_JSON.strip()
+creds_info = json.loads(_sa_raw[:_sa_raw.rfind('}')+1])
 creds  = service_account.Credentials.from_service_account_info(
     creds_info, scopes=["https://www.googleapis.com/auth/spreadsheets"]
 )
