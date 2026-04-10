@@ -2,9 +2,13 @@
 Picanha Fest 2026 — Publicador Instagram
 Roda via GitHub Actions a cada 5 minutos.
 Lê planilha, publica posts pendentes, atualiza status.
+
+Drive URLs (drive.google.com / drive.usercontent.google.com) são bloqueadas
+pela Meta API. Todos os arquivos são baixados e reupados no catbox.moe antes
+de enviar para a Meta. Reels também são re-encodados com ffmpeg.
 """
 import warnings; warnings.filterwarnings("ignore")
-import os, json, time, requests
+import os, json, time, tempfile, subprocess, requests
 from datetime import datetime, timezone, timedelta
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
@@ -16,10 +20,9 @@ META_TOKEN     = os.environ["META_TOKEN"]
 GOOGLE_SA_JSON = os.environ["GOOGLE_SA_JSON"]
 
 # ── Auth Google ────────────────────────────────────────────────────────────────
-# Extrai só o JSON (ignora lixo após o fechamento do objeto)
-_sa_raw = GOOGLE_SA_JSON.strip()
+_sa_raw    = GOOGLE_SA_JSON.strip()
 creds_info = json.loads(_sa_raw[:_sa_raw.rfind('}')+1])
-creds  = service_account.Credentials.from_service_account_info(
+creds      = service_account.Credentials.from_service_account_info(
     creds_info, scopes=["https://www.googleapis.com/auth/spreadsheets"]
 )
 sheets = build("sheets", "v4", credentials=creds)
@@ -37,7 +40,6 @@ rows = sheets.spreadsheets().values().get(
 ).execute().get("values", [])
 
 # ── Filtrar posts a publicar ───────────────────────────────────────────────────
-# Janela: agendado há 0–10 min (GitHub Actions roda a cada 5 min)
 posts = []
 for i, row in enumerate(rows[1:], start=2):
     while len(row) < 9:
@@ -81,16 +83,78 @@ def checar_erro(r, contexto=""):
     if "error" in r:
         raise Exception(f"{contexto}: {r['error'].get('message', str(r['error']))}")
 
-# ── Publicar estático ──────────────────────────────────────────────────────────
-def drive_url(url):
-    """Garante que URLs do Drive usam export=download (servido direto, sem HTML)."""
+def drive_download_url(url):
+    """Converte URL do Drive para URL de download direto."""
     return url.replace("export=view", "export=download")
 
+def catbox_upload(filepath, filename="file"):
+    """Sobe arquivo no catbox.moe e retorna URL pública direta."""
+    print(f"  Subindo {filename} para catbox.moe...")
+    with open(filepath, "rb") as f:
+        resp = requests.post(
+            "https://catbox.moe/user/api.php",
+            data={"reqtype": "fileupload"},
+            files={"fileToUpload": (filename, f)},
+            timeout=180
+        )
+    resp.raise_for_status()
+    url = resp.text.strip()
+    print(f"  URL pública: {url}")
+    return url
+
+def baixar_drive(url, suffix):
+    """Baixa arquivo do Drive para temporário local."""
+    tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
+    print(f"  Baixando do Drive...")
+    with requests.get(drive_download_url(url), stream=True, timeout=120) as resp:
+        for chunk in resp.iter_content(chunk_size=65536):
+            tmp.write(chunk)
+    tmp.close()
+    return tmp.name
+
+# ── Preparar imagem ────────────────────────────────────────────────────────────
+def preparar_imagem(url_drive):
+    """Baixa imagem do Drive e sobe no catbox.moe (Drive bloqueado pela Meta)."""
+    tmp = baixar_drive(url_drive, "_img.jpg")
+    try:
+        return catbox_upload(tmp, "image.jpg")
+    finally:
+        os.unlink(tmp)
+
+# ── Preparar vídeo reel ────────────────────────────────────────────────────────
+def preparar_video_reel(url_drive):
+    """
+    Baixa vídeo do Drive, re-encoda (H.264 CFR 30fps, CRF 23, AAC 128k)
+    e sobe no catbox.moe. Necessário porque:
+    - Drive URLs bloqueadas pela Meta
+    - Bitrate alto / ausência de B-frames causam ERROR no processador da Meta
+    """
+    tmp_in = baixar_drive(url_drive, "_orig.mp4")
+    tmp_out = tmp_in.replace("_orig.mp4", "_enc.mp4")
+    try:
+        print("  Re-encodando (H.264 CFR 30fps, AAC 128k)...")
+        subprocess.run([
+            "ffmpeg", "-y", "-i", tmp_in,
+            "-c:v", "libx264", "-profile:v", "high",
+            "-crf", "23", "-preset", "medium",
+            "-r", "30", "-g", "60", "-keyint_min", "60", "-sc_threshold", "0",
+            "-c:a", "aac", "-b:a", "128k", "-ar", "48000",
+            "-movflags", "+faststart",
+            tmp_out
+        ], check=True, capture_output=True)
+        return catbox_upload(tmp_out, "reel.mp4")
+    finally:
+        os.unlink(tmp_in)
+        if os.path.exists(tmp_out):
+            os.unlink(tmp_out)
+
+# ── Publicar estático ──────────────────────────────────────────────────────────
 def publicar_estatico(post):
+    image_url = preparar_imagem(post["url"])
     r = requests.post(
         f"https://graph.facebook.com/v19.0/{IG_ACCOUNT_ID}/media",
         params={
-            "image_url":    drive_url(post["url"]),
+            "image_url":    image_url,
             "caption":      caption_completa(post),
             "access_token": META_TOKEN
         }
@@ -105,66 +169,21 @@ def publicar_estatico(post):
     checar_erro(r2, "publicar estático")
     return r2["id"]
 
-# ── Preparar vídeo ─────────────────────────────────────────────────────────────
-def preparar_video_reel(url_drive):
-    """
-    Baixa vídeo do Drive, re-encoda com specs corretos para Meta Reels
-    (H.264 CFR 30fps, CRF 23, AAC 128k) e sobe num host temporário público.
-    Necessário porque bitrate alto / B-frames ausentes causam ERROR no processador da Meta.
-    """
-    import subprocess, tempfile, os
-
-    # 1. Download do Drive
-    print("  Baixando vídeo do Drive...")
-    tmp_in = tempfile.NamedTemporaryFile(suffix="_orig.mp4", delete=False)
-    with requests.get(url_drive, stream=True, timeout=120) as resp:
-        for chunk in resp.iter_content(chunk_size=65536):
-            tmp_in.write(chunk)
-    tmp_in.close()
-
-    # 2. Re-encoda: CFR 30fps, CRF 23, sem B-frames implícitos, AAC 128k
-    tmp_out = tmp_in.name.replace("_orig.mp4", "_enc.mp4")
-    print("  Re-encodando para Meta Reels (H.264 CFR 30fps, AAC 128k)...")
-    subprocess.run([
-        "ffmpeg", "-y", "-i", tmp_in.name,
-        "-c:v", "libx264", "-profile:v", "high",
-        "-crf", "23", "-preset", "medium",
-        "-r", "30", "-g", "60", "-keyint_min", "60", "-sc_threshold", "0",
-        "-c:a", "aac", "-b:a", "128k", "-ar", "48000",
-        "-movflags", "+faststart",
-        tmp_out
-    ], check=True, capture_output=True)
-
-    # 3. Sobe no 0x0.st (host temporário, sem auth, URL direta)
-    print("  Subindo vídeo re-encodado para host público...")
-    with open(tmp_out, "rb") as f:
-        resp = requests.post("https://0x0.st", files={"file": f}, timeout=120)
-    resp.raise_for_status()
-    url_final = resp.text.strip()
-    print(f"  URL pública: {url_final}")
-
-    # Limpa temporários
-    os.unlink(tmp_in.name)
-    os.unlink(tmp_out)
-
-    return url_final
-
 # ── Publicar reel ──────────────────────────────────────────────────────────────
 def publicar_reel(post):
-    video_url = preparar_video_reel(drive_url(post["url"]))
+    video_url = preparar_video_reel(post["url"])
     r = requests.post(
         f"https://graph.facebook.com/v19.0/{IG_ACCOUNT_ID}/media",
         params={
-            "media_type":   "REELS",
-            "video_url":    video_url,
-            "caption":      caption_completa(post),
+            "media_type":    "REELS",
+            "video_url":     video_url,
+            "caption":       caption_completa(post),
             "share_to_feed": "true",
-            "access_token": META_TOKEN
+            "access_token":  META_TOKEN
         }
     ).json()
     checar_erro(r, "criar container reel")
     container_id = r["id"]
-    # Polling até FINISHED (máx 3 min)
     print("  Aguardando processamento do reel...")
     for tentativa in range(18):
         time.sleep(10)
@@ -192,15 +211,16 @@ def publicar_carrossel(post):
     urls = post["url"].split("|")
     child_ids = []
     for url in urls:
+        image_url = preparar_imagem(url.strip())
         r = requests.post(
             f"https://graph.facebook.com/v19.0/{IG_ACCOUNT_ID}/media",
             params={
-                "image_url":        drive_url(url.strip()),
+                "image_url":        image_url,
                 "is_carousel_item": "true",
                 "access_token":     META_TOKEN
             }
         ).json()
-        checar_erro(r, f"criar slide {url[:40]}")
+        checar_erro(r, f"criar slide {url.strip()[:40]}")
         child_ids.append(r["id"])
         time.sleep(1)
     r = requests.post(
