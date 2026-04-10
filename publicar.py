@@ -82,11 +82,15 @@ def checar_erro(r, contexto=""):
         raise Exception(f"{contexto}: {r['error'].get('message', str(r['error']))}")
 
 # ── Publicar estático ──────────────────────────────────────────────────────────
+def drive_url(url):
+    """Garante que URLs do Drive usam export=download (servido direto, sem HTML)."""
+    return url.replace("export=view", "export=download")
+
 def publicar_estatico(post):
     r = requests.post(
         f"https://graph.facebook.com/v19.0/{IG_ACCOUNT_ID}/media",
         params={
-            "image_url":    post["url"],
+            "image_url":    drive_url(post["url"]),
             "caption":      caption_completa(post),
             "access_token": META_TOKEN
         }
@@ -103,11 +107,12 @@ def publicar_estatico(post):
 
 # ── Publicar reel ──────────────────────────────────────────────────────────────
 def publicar_reel(post):
+    video_url = drive_url(post["url"])
     r = requests.post(
         f"https://graph.facebook.com/v19.0/{IG_ACCOUNT_ID}/media",
         params={
             "media_type":   "REELS",
-            "video_url":    post["url"],
+            "video_url":    video_url,
             "caption":      caption_completa(post),
             "share_to_feed": "true",
             "access_token": META_TOKEN
@@ -146,7 +151,7 @@ def publicar_carrossel(post):
         r = requests.post(
             f"https://graph.facebook.com/v19.0/{IG_ACCOUNT_ID}/media",
             params={
-                "image_url":        url,
+                "image_url":        drive_url(url.strip()),
                 "is_carousel_item": "true",
                 "access_token":     META_TOKEN
             }
