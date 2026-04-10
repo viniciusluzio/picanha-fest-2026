@@ -105,9 +105,53 @@ def publicar_estatico(post):
     checar_erro(r2, "publicar estático")
     return r2["id"]
 
+# ── Preparar vídeo ─────────────────────────────────────────────────────────────
+def preparar_video_reel(url_drive):
+    """
+    Baixa vídeo do Drive, re-encoda com specs corretos para Meta Reels
+    (H.264 CFR 30fps, CRF 23, AAC 128k) e sobe num host temporário público.
+    Necessário porque bitrate alto / B-frames ausentes causam ERROR no processador da Meta.
+    """
+    import subprocess, tempfile, os
+
+    # 1. Download do Drive
+    print("  Baixando vídeo do Drive...")
+    tmp_in = tempfile.NamedTemporaryFile(suffix="_orig.mp4", delete=False)
+    with requests.get(url_drive, stream=True, timeout=120) as resp:
+        for chunk in resp.iter_content(chunk_size=65536):
+            tmp_in.write(chunk)
+    tmp_in.close()
+
+    # 2. Re-encoda: CFR 30fps, CRF 23, sem B-frames implícitos, AAC 128k
+    tmp_out = tmp_in.name.replace("_orig.mp4", "_enc.mp4")
+    print("  Re-encodando para Meta Reels (H.264 CFR 30fps, AAC 128k)...")
+    subprocess.run([
+        "ffmpeg", "-y", "-i", tmp_in.name,
+        "-c:v", "libx264", "-profile:v", "high",
+        "-crf", "23", "-preset", "medium",
+        "-r", "30", "-g", "60", "-keyint_min", "60", "-sc_threshold", "0",
+        "-c:a", "aac", "-b:a", "128k", "-ar", "48000",
+        "-movflags", "+faststart",
+        tmp_out
+    ], check=True, capture_output=True)
+
+    # 3. Sobe no 0x0.st (host temporário, sem auth, URL direta)
+    print("  Subindo vídeo re-encodado para host público...")
+    with open(tmp_out, "rb") as f:
+        resp = requests.post("https://0x0.st", files={"file": f}, timeout=120)
+    resp.raise_for_status()
+    url_final = resp.text.strip()
+    print(f"  URL pública: {url_final}")
+
+    # Limpa temporários
+    os.unlink(tmp_in.name)
+    os.unlink(tmp_out)
+
+    return url_final
+
 # ── Publicar reel ──────────────────────────────────────────────────────────────
 def publicar_reel(post):
-    video_url = drive_url(post["url"])
+    video_url = preparar_video_reel(drive_url(post["url"]))
     r = requests.post(
         f"https://graph.facebook.com/v19.0/{IG_ACCOUNT_ID}/media",
         params={
