@@ -89,19 +89,21 @@ def drive_download_url(url):
     """Converte URL do Drive para URL de download direto."""
     return url.replace("export=view", "export=download")
 
-def catbox_upload(filepath, filename="file"):
-    """Sobe arquivo no catbox.moe e retorna URL pública direta."""
-    print(f"  Subindo {filename} para catbox.moe...")
+MANAGEMENT_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2MTJlNmQzMmVlMjRjZDFjYWE3Yzg2MTEiLCJtb2R1bGUiOiJtYW5hZ2VtZW50IiwiaWF0IjoxNzU4MTE0ODI5LCJleHAiOjE4MjEyMzAwMjl9.CgI4UQRwoiME8qKyxnCxGeOzNUcFWYMYYhhEAGsKxcw"
+
+def s3_upload(filepath, filename="file", mimetype="application/octet-stream"):
+    """Sobe arquivo na management API do Trend → S3 público. Retorna URL direta."""
+    print(f"  Subindo {filename} para S3...")
     with open(filepath, "rb") as f:
         resp = requests.post(
-            "https://catbox.moe/user/api.php",
-            data={"reqtype": "fileupload"},
-            files={"fileToUpload": (filename, f)},
+            "https://api.clubedapicanhatrend.com.br/v2/management/files/others",
+            headers={"Authorization": f"Bearer {MANAGEMENT_TOKEN}"},
+            files={"file": (filename, f, mimetype)},
             timeout=180
         )
     resp.raise_for_status()
-    url = resp.text.strip()
-    print(f"  URL pública: {url}")
+    url = resp.json()["url"]
+    print(f"  URL S3: {url}")
     return url
 
 def baixar_drive(url, suffix):
@@ -119,7 +121,7 @@ def preparar_imagem(url_drive):
     """Baixa imagem do Drive e sobe no catbox.moe (Drive bloqueado pela Meta)."""
     tmp = baixar_drive(url_drive, "_img.jpg")
     try:
-        return catbox_upload(tmp, "image.jpg")
+        return s3_upload(tmp, "image.jpg", "image/jpeg")
     finally:
         os.unlink(tmp)
 
@@ -144,7 +146,7 @@ def preparar_video_reel(url_drive):
             "-movflags", "+faststart",
             tmp_out
         ], check=True, capture_output=True)
-        return catbox_upload(tmp_out, "reel.mp4")
+        return s3_upload(tmp_out, "reel.mp4", "video/mp4")
     finally:
         os.unlink(tmp_in)
         if os.path.exists(tmp_out):
