@@ -17,9 +17,14 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Instalar dependências
+      - name: Cache ffmpeg
+        uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages: ffmpeg
+          version: 1.0
+
+      - name: Instalar dependências Python
         run: |
-          sudo apt-get install -y ffmpeg --quiet
           pip install --quiet \
             google-auth \
             google-auth-httplib2 \
