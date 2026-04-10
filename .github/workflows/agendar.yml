@@ -1,0 +1,30 @@
+name: Agendar Posts Instagram
+
+on:
+  workflow_dispatch:   # roda manualmente quando tem conteúdo novo na planilha
+
+jobs:
+  agendar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30   # reels precisam processar (~3 min cada)
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instalar dependências
+        run: |
+          pip install --quiet \
+            google-auth \
+            google-auth-httplib2 \
+            google-api-python-client \
+            requests
+
+      - name: Agendar posts na Meta API
+        env:
+          META_TOKEN:     ${{ secrets.META_TOKEN }}
+          GOOGLE_SA_JSON: ${{ secrets.GOOGLE_SA_JSON }}
+        run: python agendar.py
