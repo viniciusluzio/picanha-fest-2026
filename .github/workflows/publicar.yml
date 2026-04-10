@@ -1,0 +1,32 @@
+name: Publicar Instagram
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'   # a cada 5 minutos, 24/7
+  workflow_dispatch:         # permite rodar manualmente
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instalar dependências
+        run: |
+          pip install --quiet \
+            google-auth \
+            google-auth-httplib2 \
+            google-api-python-client \
+            requests
+
+      - name: Publicar posts agendados
+        env:
+          META_TOKEN:     ${{ secrets.META_TOKEN }}
+          GOOGLE_SA_JSON: ${{ secrets.GOOGLE_SA_JSON }}
+        run: python publicar.py
