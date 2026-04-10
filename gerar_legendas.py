@@ -35,9 +35,17 @@ ESTILO DA CONTA (baseado nos últimos 40 posts reais):
 - NÃO usar hashtags no corpo — vão em campo separado
 
 EXEMPLOS REAIS DE LEGENDAS DA CONTA:
-- "Bora curtir a vida no Picanha Fest?! 🔥👀 Tá chegaaaando, hem?! 😏\\n8 horas de festa 💃🏻 Open beer 🍻 Open food com mais de 14 estações de churrasco 🥩 Música ao vivo 🎶 Em meio à natureza 🍃\\nTá esperando o que para garantir o seu ingresso? 🤔\\n🎟️ Ingressos através do link na bio!"
-- "FALTA 1 MÊS!!🔥🔥🔥\\nO Picanha Fest está chegando e essa 6ª edição promete ser inesquecível 🚀 Você vem, né?! 😏\\n🎟️ Ingressos voando através do link na bio."
-- "Experiência única que só o Picanha Fest proporciona para você! 🔥🚀\\n⏰ 8 horas de festa com churrasco e cerveja à vontade 🥩🍻 Pagode, sertanejo e DJs 🎶 Ambiente em meio à natureza 🍃\\n🗓️ 25 de abril | 📍Paioça do Caboclo, Joaquim Egídio\\n🎟️ Ingressos voando através do link na bio 💨"
+- "Bora curtir a vida no Picanha Fest?! 🔥👀 Tá chegaaaando, hem?! 😏
+8 horas de festa 💃🏻 Open beer 🍻 Open food com mais de 14 estações de churrasco 🥩 Música ao vivo 🎶 Em meio à natureza 🍃
+Tá esperando o que para garantir o seu ingresso? 🤔
+🎟️ Ingressos através do link na bio!"
+- "FALTA 1 MÊS!!🔥🔥🔥
+O Picanha Fest está chegando e essa 6ª edição promete ser inesquecível 🚀 Você vem, né?! 😏
+🎟️ Ingressos voando através do link na bio."
+- "Experiência única que só o Picanha Fest proporciona para você! 🔥🚀
+⏰ 8 horas de festa com churrasco e cerveja à vontade 🥩🍻 Pagode, sertanejo e DJs 🎶 Ambiente em meio à natureza 🍃
+🗓️ 25 de abril | 📍Paioça do Caboclo, Joaquim Egídio
+🎟️ Ingressos voando através do link na bio 💨"
 """
 
 HASHTAGS = "#PicanhaFest2026 #PicanhaFest #Churrasco #Campinas #OpenFood #OpenBeer #ChurrascoDeRespeito #Picanha #FestaCampinas #Churrasqueiro #VidaBoaChurrasco #EventoCampinas"
@@ -197,7 +205,7 @@ def gerar_legenda_imagem(file_id, nome, tipo, dados_bytes=None):
         f"Você é o redator do @picanhafestoficial. Analise este criativo (tipo: {tipo}) e gere uma legenda no estilo real da conta.\n\n"
         f"{CONTEXT}\n\n"
         "Responda EXATAMENTE neste formato (sem mais nada):\n"
-        "LEGENDA: [legenda completa aqui, com quebras de linha usando \\n, no estilo real da conta]\n"
+        "LEGENDA: [legenda completa aqui, com quebras de linha naturais, no estilo real da conta]\n"
         "HASHTAGS: [hashtags separadas por espaço, começando com #PicanhaFest2026]\n\n"
         "IMPORTANTE: A legenda deve soar 100% humana, no estilo real da conta. Sempre termine com o CTA."
     )
@@ -238,7 +246,7 @@ def gerar_legenda_video(nome):
         f"{CONTEXT}\n\n"
         f"Tema do vídeo (baseado no nome do arquivo): {titulo}\n\n"
         "Responda EXATAMENTE neste formato (sem mais nada):\n"
-        "LEGENDA: [legenda completa aqui, com quebras de linha usando \\n, no estilo real da conta]\n"
+        "LEGENDA: [legenda completa aqui, com quebras de linha naturais, no estilo real da conta]\n"
         "HASHTAGS: [hashtags separadas por espaço, começando com #PicanhaFest2026]\n\n"
         "IMPORTANTE: A legenda deve soar 100% humana, no estilo real da conta. Sempre termine com o CTA."
     )

@@ -77,7 +77,9 @@ def atualizar_status(row_index, status):
     ).execute()
 
 def caption_completa(post):
-    return post["legenda"] + "\n\n" + post["hashtags"]
+    legenda   = post["legenda"].replace("\\n", "\n")
+    hashtags  = post["hashtags"].replace("\\n", "\n")
+    return legenda + "\n\n" + hashtags
 
 def checar_erro(r, contexto=""):
     if "error" in r:
