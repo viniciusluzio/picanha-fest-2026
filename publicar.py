@@ -161,7 +161,7 @@ def preparar_video_reel(url_drive):
     tmp_out = tmp_in.replace("_orig.mp4", "_enc.mp4")
     try:
         print("  Re-encodando (H.264 CFR 30fps, AAC 128k)...")
-        subprocess.run([
+        result = subprocess.run([
             "ffmpeg", "-y", "-i", tmp_in,
             "-c:v", "libx264", "-profile:v", "high",
             "-crf", "23", "-preset", "medium",
@@ -169,7 +169,10 @@ def preparar_video_reel(url_drive):
             "-c:a", "aac", "-b:a", "128k", "-ar", "48000",
             "-movflags", "+faststart",
             tmp_out
-        ], check=True, capture_output=True)
+        ], capture_output=True)
+        if result.returncode != 0:
+            stderr_tail = result.stderr[-2000:].decode("utf-8", errors="replace") if result.stderr else ""
+            raise Exception(f"ffmpeg exit={result.returncode} | {stderr_tail}")
         return s3_upload(tmp_out, "reel.mp4", "video/mp4")
     finally:
         os.unlink(tmp_in)
@@ -285,6 +288,6 @@ for post in posts:
         atualizar_status(post["row"], "publicado")
         print(f"✅ Publicado! media_id={media_id}")
     except Exception as e:
-        msg = str(e)[:80]
+        msg = str(e)[:200]
         atualizar_status(post["row"], f"erro: {msg}")
-        print(f"❌ Erro: {e}")
+        print(f"❌ Erro completo: {e}")
