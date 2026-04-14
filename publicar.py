@@ -134,9 +134,9 @@ def baixar_drive(url, suffix):
     for chunk in resp.iter_content(chunk_size=65536):
         tmp.write(chunk)
     tmp.close()
-    size_mb = os.path.getsize(tmp.name) // 1024 // 1024
-    print(f"  Download OK: {size_mb}MB")
-    if size_mb == 0:
+    size_bytes = os.path.getsize(tmp.name)
+    print(f"  Download OK: {size_bytes // 1024}KB")
+    if size_bytes < 10240:  # menos de 10KB = erro real
         raise Exception("Arquivo baixado está vazio — possível erro de permissão no Drive")
     return tmp.name
 
