@@ -109,13 +109,39 @@ def s3_upload(filepath, filename="file", mimetype="application/octet-stream"):
     return url
 
 def baixar_drive(url, suffix):
-    """Baixa arquivo do Drive para temporário local."""
-    tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
+    """Baixa arquivo do Drive para temporário local.
+    Lida com a página de confirmação para arquivos grandes (>25MB)."""
+    dl_url = drive_download_url(url)
     print(f"  Baixando do Drive...")
-    with requests.get(drive_download_url(url), stream=True, timeout=120) as resp:
-        for chunk in resp.iter_content(chunk_size=65536):
-            tmp.write(chunk)
+    session = requests.Session()
+    resp = session.get(dl_url, stream=True, timeout=300)
+
+    # Google Drive retorna página HTML de confirmação para arquivos grandes
+    # Detectar pelo Content-Type e pelo token de confirmação
+    content_type = resp.headers.get("Content-Type", "")
+    if "text/html" in content_type:
+        # Extrair o token de confirmação da resposta
+        import re
+        text = resp.text
+        # Tentar múltiplos padrões de confirmação
+        match = re.search(r'confirm=([0-9A-Za-z_\-]+)', text)
+        if not match:
+            match = re.search(r'name="confirm" value="([^"]+)"', text)
+        if match:
+            confirm = match.group(1)
+            dl_url = dl_url + f"&confirm={confirm}"
+        else:
+            # Fallback: usar o endpoint uc com id direto
+            file_id = re.search(r'id=([a-zA-Z0-9_-]+)', dl_url)
+            if file_id:
+                dl_url = f"https://drive.usercontent.google.com/download?id={file_id.group(1)}&export=download&confirm=t"
+        resp = session.get(dl_url, stream=True, timeout=300)
+
+    tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
+    for chunk in resp.iter_content(chunk_size=65536):
+        tmp.write(chunk)
     tmp.close()
+    print(f"  Download OK: {os.path.getsize(tmp.name) // 1024 // 1024}MB")
     return tmp.name
 
 # ── Preparar imagem ────────────────────────────────────────────────────────────
