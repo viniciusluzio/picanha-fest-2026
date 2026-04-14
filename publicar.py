@@ -56,7 +56,9 @@ for i, row in enumerate(rows[1:], start=2):
     except Exception:
         continue
     diff = current_min - (h * 60 + m)
-    if 0 <= diff < 10:
+    # Publica qualquer post do dia que já passou o horário (janela = dia inteiro)
+    # Garante que posts não sejam perdidos mesmo quando o GitHub Actions atrasa horas
+    if diff >= 0:
         posts.append({
             "row": i, "tipo": tipo, "legenda": legenda,
             "hashtags": hashtags, "url": url_arquivo
