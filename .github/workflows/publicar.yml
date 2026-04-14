@@ -18,11 +18,8 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Cache ffmpeg
-        uses: awalsh128/cache-apt-pkgs-action@latest
-        with:
-          packages: ffmpeg
-          version: 1.0
+      - name: Instalar ffmpeg
+        run: sudo apt-get install -y ffmpeg
 
       - name: Instalar dependências Python
         run: |
