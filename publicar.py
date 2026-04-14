@@ -87,9 +87,11 @@ def checar_erro(r, contexto=""):
     if "error" in r:
         raise Exception(f"{contexto}: {r['error'].get('message', str(r['error']))}")
 
-def drive_download_url(url):
-    """Converte URL do Drive para URL de download direto."""
-    return url.replace("export=view", "export=download")
+def extrair_file_id(url):
+    """Extrai o file ID de uma URL do Google Drive."""
+    import re
+    m = re.search(r'[?&]id=([a-zA-Z0-9_-]+)', url)
+    return m.group(1) if m else None
 
 MANAGEMENT_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2MTJlNmQzMmVlMjRjZDFjYWE3Yzg2MTEiLCJtb2R1bGUiOiJtYW5hZ2VtZW50IiwiaWF0IjoxNzU4MTE0ODI5LCJleHAiOjE4MjEyMzAwMjl9.CgI4UQRwoiME8qKyxnCxGeOzNUcFWYMYYhhEAGsKxcw"
 
@@ -109,39 +111,33 @@ def s3_upload(filepath, filename="file", mimetype="application/octet-stream"):
     return url
 
 def baixar_drive(url, suffix):
-    """Baixa arquivo do Drive para temporário local.
-    Lida com a página de confirmação para arquivos grandes (>25MB)."""
-    dl_url = drive_download_url(url)
-    print(f"  Baixando do Drive...")
-    session = requests.Session()
-    resp = session.get(dl_url, stream=True, timeout=300)
+    """Baixa arquivo do Drive usando drive.usercontent.google.com com confirm=t.
+    Este endpoint pula o aviso de vírus para arquivos grandes sem precisar de scraping."""
+    file_id = extrair_file_id(url)
+    if not file_id:
+        raise Exception(f"Não foi possível extrair file_id da URL: {url}")
 
-    # Google Drive retorna página HTML de confirmação para arquivos grandes
-    # Detectar pelo Content-Type e pelo token de confirmação
+    # Usar o endpoint usercontent que aceita confirm=t direto (sem scraping de HTML)
+    dl_url = f"https://drive.usercontent.google.com/download?id={file_id}&export=download&confirm=t&authuser=0"
+    print(f"  Baixando do Drive (id={file_id})...")
+
+    session = requests.Session()
+    resp = session.get(dl_url, stream=True, timeout=300, allow_redirects=True)
+    resp.raise_for_status()
+
+    # Verificar se realmente veio um arquivo e não HTML
     content_type = resp.headers.get("Content-Type", "")
     if "text/html" in content_type:
-        # Extrair o token de confirmação da resposta
-        import re
-        text = resp.text
-        # Tentar múltiplos padrões de confirmação
-        match = re.search(r'confirm=([0-9A-Za-z_\-]+)', text)
-        if not match:
-            match = re.search(r'name="confirm" value="([^"]+)"', text)
-        if match:
-            confirm = match.group(1)
-            dl_url = dl_url + f"&confirm={confirm}"
-        else:
-            # Fallback: usar o endpoint uc com id direto
-            file_id = re.search(r'id=([a-zA-Z0-9_-]+)', dl_url)
-            if file_id:
-                dl_url = f"https://drive.usercontent.google.com/download?id={file_id.group(1)}&export=download&confirm=t"
-        resp = session.get(dl_url, stream=True, timeout=300)
+        raise Exception(f"Drive retornou HTML em vez do arquivo (file_id={file_id}). Verifique permissões.")
 
     tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
     for chunk in resp.iter_content(chunk_size=65536):
         tmp.write(chunk)
     tmp.close()
-    print(f"  Download OK: {os.path.getsize(tmp.name) // 1024 // 1024}MB")
+    size_mb = os.path.getsize(tmp.name) // 1024 // 1024
+    print(f"  Download OK: {size_mb}MB")
+    if size_mb == 0:
+        raise Exception("Arquivo baixado está vazio — possível erro de permissão no Drive")
     return tmp.name
 
 # ── Preparar imagem ────────────────────────────────────────────────────────────
