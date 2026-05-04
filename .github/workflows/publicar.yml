@@ -1,10 +1,11 @@
 name: Publicar Instagram
 
 on:
-  schedule:
-    - cron: '0,10,20,30,40,50 * * * *'   # a cada 10 minutos (mais confiável que */5)
-    - cron: '5,15,25,35,45,55 * * * *'   # offset de 5 min — garante cobertura a cada 5 min
-  workflow_dispatch:                       # permite rodar manualmente
+  # STANDBY — descomentar as linhas abaixo para reativar o cron automático
+  # schedule:
+  #   - cron: '0,10,20,30,40,50 * * * *'
+  #   - cron: '5,15,25,35,45,55 * * * *'
+  workflow_dispatch:                       # disparo manual continua disponível
 
 jobs:
   publicar:
